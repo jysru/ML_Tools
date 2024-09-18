@@ -1,0 +1,9 @@
+h5py
+numpy
+matplotlib
+pytest
+scipy
+scikit-learn
+setuptools
+tensorflow
+torch
