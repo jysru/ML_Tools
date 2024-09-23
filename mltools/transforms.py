@@ -109,4 +109,16 @@ class Linear2Decibels(AbstractTransformation):
     
     
     
-
+class DynamicRangeClipper(AbstractTransformation):
+    
+    def __init__(self, dynamic_range_db: float = 30) -> None:
+        super().__init__()
+        self.dynamic_range_decibels: float = dynamic_range_db
+        
+    def forward(self, data: np.ndarray) -> np.ndarray:
+        data = Linear2Decibels().forward(data)
+        data[data <= (np.max(data) - np.abs(self.dynamic_range_decibels))] = 0
+        data = Linear2Decibels().backward(data)
+        
+    def backward(self) -> None:
+        return None
