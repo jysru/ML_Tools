@@ -122,3 +122,27 @@ class DynamicRangeClipper(AbstractTransformation):
         
     def backward(self) -> None:
         return None
+    
+    def __call__(self, data: np.ndarray) -> np.ndarray:
+        return super().__call__(data, invert=False)
+
+
+class Quantify(AbstractTransformation):
+
+    def __init__(self, n_bits: int = 10) -> None:
+        super().__init__()
+        self.n_bits: int = n_bits
+        self.max_quanta: int = np.power(2, self.n_bits) - 1
+
+    def forward(self, data: np.ndarray) -> np.ndarray:
+        max = np.max(data)
+        data = data / max
+        array = np.floor(array * self.max_quanta) / self.max_quanta * max
+        return data
+
+    def backward(self) -> None:
+        return None
+    
+    def __call__(self, data: np.ndarray) -> np.ndarray:
+        return self.forward(data)
+
