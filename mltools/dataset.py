@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+import torch
 
 from sklearn.model_selection import train_test_split
 from typing import Literal, Optional, Union, TypeVar, overload
@@ -10,9 +11,9 @@ def tf_get_dataset_number_of_elements(dataset: tf.data.Dataset,) -> int:
         return dataset.reduce(0, lambda x, batch: x + tf.shape(batch[0])[0]).numpy()
     else:
         return len(list(dataset))
+    
 
-
-def tf_is_dataset_batched(dataset: tf.data.Dataset,):
+def tf_is_dataset_batched(dataset: tf.data.Dataset,) -> bool:
     # Check the element_spec
     if isinstance(dataset.element_spec, tuple):
         # For datasets with tuples of (input, label)
@@ -21,6 +22,14 @@ def tf_is_dataset_batched(dataset: tf.data.Dataset,):
     else:
         # For datasets with a single element
         return dataset.element_spec.shape[0] is None
+    
+    
+def torch_get_dataloader_number_of_elements(dataloader: torch.utils.data.DataLoader,) -> int:
+    return len(dataloader)
+
+
+def torch_is_dataloader_batched(dataloader: torch.utils.data.DataLoader,) -> bool:
+    return True if dataloader.batch_size > 1 else False
 
 
 def tf_get_random_element_from_dataset(dataset: tf.data.Dataset,) -> tuple[tf.Tensor,]:
@@ -56,6 +65,40 @@ def tf_get_random_element_from_unbatched_dataset(dataset: tf.data.Dataset,) -> t
     # Retrieve the first element from the shuffled dataset
     element = next(iter(shuffled_dataset))
     return element
+
+
+def torch_get_random_element_from_dataloader(dataloader: torch.utils.data.DataLoader,) -> tuple[torch.Tensor,]:
+    if torch_is_dataloader_batched(dataloader):
+        return torch_get_random_element_from_batched_dataloader(dataloader)
+    else:
+        return torch_get_random_element_from_unbatched_dataloader(dataloader)
+    
+
+def torch_get_random_element_from_unbatched_dataloader(dataloader: torch.utils.data.DataLoader,) -> tuple[torch.Tensor,]:
+    # Shuffle the dataloader
+    dataloader.shuffle = True
+    
+    # Retrieve the first element from the shuffled dataloader
+    element = next(iter(dataloader))
+    return element
+
+
+def torch_get_random_element_from_batched_dataloader(dataloader: torch.utils.data.DataLoader,) -> tuple[torch.Tensor,]:
+    # Create an iterator
+    data_iter = iter(dataloader)
+
+    # Get a random batch
+    random_batch = next(data_iter)
+    
+    # Determine the batch size
+    batch_size = random_batch[0].size(0)
+    
+    # Select a random index within the batch
+    random_index = np.random.randint(0, batch_size - 1)
+
+    # Get the random element
+    random_element = tuple(tensor[random_index] for tensor in random_batch)
+    return random_element
 
 
 @tf.autograph.experimental.do_not_convert
@@ -258,6 +301,60 @@ def tf_are_datasets_leaking(datasets: dict) -> bool:
         
         for name2 in dataset_names[i+1:]:
             set2 = tf_dataset_to_set(datasets[name2])
+            intersection = set1.intersection(set2)
+            
+            if intersection:
+                print(f"Data leakage detected between {name1} and {name2}: {len(intersection)} common elements found.")
+                is_any_dataset_leaking = True
+            else:
+                print(f"No data leakage detected between {name1} and {name2}.")
+                
+    return is_any_dataset_leaking
+
+
+
+def torch_dataloader_to_set(dataloader: torch.utils.data.DataLoader,) -> set:
+    if torch_is_dataloader_batched(dataloader):
+        return torch_batched_dataloader_to_set(dataloader)
+    else:
+        return torch_unbatched_dataloader_to_set(dataloader)
+
+
+def torch_batched_dataloader_to_set(dataloader: torch.utils.data.DataLoader,) -> set:
+    all_elements = set()
+    for batch in dataloader:
+        # Assuming the batch is a tuple of (inputs, labels)
+        inputs, labels = batch
+        
+        # Flatten the batch and add elements to the set
+        all_elements.update(inputs.view(-1).tolist())
+        all_elements.update(labels.tolist())
+    
+    return all_elements
+
+
+def torch_unbatched_dataloader_to_set(dataloader: torch.utils.data.DataLoader,) -> set:
+    all_elements = set()
+    for sample in dataloader:
+        # Assuming each sample is a tuple of (input, label)
+        input, label = sample
+        
+        # Add elements to the set
+        all_elements.update(input.squeeze().tolist())
+        all_elements.add(label.item())
+    
+    return all_elements
+
+
+def torch_are_datasets_leaking(dataloaders: dict) -> bool:
+    is_any_dataset_leaking = False
+    dataloaders_names = list(dataloaders.keys())
+    
+    for i, name1 in enumerate(dataloaders_names):
+        set1 = torch_dataloader_to_set(dataloaders[name1])
+        
+        for name2 in dataloaders_names[i+1:]:
+            set2 = torch_dataloader_to_set(dataloaders[name2])
             intersection = set1.intersection(set2)
             
             if intersection:
