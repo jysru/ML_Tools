@@ -314,39 +314,22 @@ def tf_are_datasets_leaking(datasets: dict) -> bool:
 
 
 def torch_dataloader_to_set(dataloader: torch.utils.data.DataLoader,) -> set:
-    if torch_is_dataloader_batched(dataloader):
-        return torch_batched_dataloader_to_set(dataloader)
-    else:
-        return torch_unbatched_dataloader_to_set(dataloader)
-
-
-def torch_batched_dataloader_to_set(dataloader: torch.utils.data.DataLoader,) -> set:
     all_elements = set()
     for batch in dataloader:
-        # Assuming the batch is a tuple of (inputs, labels)
+        # Assuming each batch is a tuple of (inputs, labels)
         inputs, labels = batch
         
-        # Flatten the batch and add elements to the set
-        all_elements.update(inputs.view(-1).tolist())
-        all_elements.update(labels.tolist())
-    
-    return all_elements
-
-
-def torch_unbatched_dataloader_to_set(dataloader: torch.utils.data.DataLoader,) -> set:
-    all_elements = set()
-    for sample in dataloader:
-        # Assuming each sample is a tuple of (input, label)
-        input, label = sample
+        # Convert tensors to tuples for hashability
+        inputs_tuple = tuple(tuple(input.cpu().numpy()) for input in inputs)
+        labels_tuple = tuple(tuple(label.cpu().numpy()) for label in labels)
         
-        # Add elements to the set
-        all_elements.update(input.squeeze().tolist())
-        all_elements.add(label.item())
+        # Add to set
+        all_elements.update(zip(inputs_tuple, labels_tuple))
     
     return all_elements
 
 
-def torch_are_datasets_leaking(dataloaders: dict) -> bool:
+def torch_are_dataloaders_leaking(dataloaders: dict) -> bool:
     is_any_dataset_leaking = False
     dataloaders_names = list(dataloaders.keys())
     
@@ -358,7 +341,10 @@ def torch_are_datasets_leaking(dataloaders: dict) -> bool:
             intersection = set1.intersection(set2)
             
             if intersection:
+                total_elements = len(set1) + len(set2)
+                overlap_percentage = len(intersection) / total_elements * 100
                 print(f"Data leakage detected between {name1} and {name2}: {len(intersection)} common elements found.")
+                print(f"Percentage of overlapping elements: {overlap_percentage:.2f}%")
                 is_any_dataset_leaking = True
             else:
                 print(f"No data leakage detected between {name1} and {name2}.")
