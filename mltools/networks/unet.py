@@ -140,12 +140,8 @@ class Pix2Pix(nn.Module):
         # Decoder (upsampling)
         self.decoder = nn.ModuleList()
         for i in range(num_levels):
-            # if i == 0:
             self.decoder.append(_DecoderBlock(channels, channels//2 + skip_chans[-(i - 1)]))
             print(f"Decoder {i+1}: in_channels = {channels}, out_channels = {channels//2 + skip_chans[-i - 1]}")
-            
-            # else:
-            #     self.decoder.append(_DecoderBlock(channels, channels))
             channels //= 2
 
         # Final convolution
