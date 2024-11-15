@@ -150,3 +150,7 @@ class MLP(L.LightningModule):
                 "monitor": "val_loss",
             }
         }
+        
+        
+        
+
